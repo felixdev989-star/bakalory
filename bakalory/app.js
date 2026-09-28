@@ -11,7 +11,7 @@ const CONFIG = {
   THEME_KEY: "bak_theme_v3",
   ROUTE_KEY: "bak_route_v3",
 
-  GOOGLE_CLIENT_ID: "172881524344-tfuolms9g7olpl0g28kf9i7nno7dqa3u.apps.googleusercontent.com",
+  GOOGLE_CLIENT_ID: "172881524344-tfuoims9g7olpi0g28kf9i7nno7dqa3u.apps.googleusercontent.com",
 
   ADMIN_EMAILS: [
     "felixghdar@gmail.com",
