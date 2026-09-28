@@ -1,13 +1,13 @@
 /* ============================================================
-   بكالوري v4.0 — Google Auth + Media Posts + Books
+   بكالوري v5.0 — Google Auth + Books (Drive) + Media Posts
    ============================================================ */
 'use strict';
 
 /* ----- CONFIG ----- */
 const CONFIG = {
   APP_NAME: "بكالوري",
-  VERSION: "4.0.0",
-  STORAGE_KEY: "bakalory_v4",
+  VERSION: "5.0.0",
+  STORAGE_KEY: "bakalory_v5",
   THEME_KEY: "bak_theme_v3",
   ROUTE_KEY: "bak_route_v3",
 
@@ -227,7 +227,7 @@ const Notifications = {
   readAll() { Store.state.notifications.forEach(n => (n.read = true)); Store.persist(); },
 };
 
-/* ----- BOOKS SERVICE ----- */
+/* ----- BOOKS ----- */
 const Books = {
   all() { return [...Store.state.books].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); },
   byId(id) { return Store.state.books.find(b => b.id === id); },
@@ -312,6 +312,39 @@ const Utils = {
       reader.onerror = rej;
       reader.readAsDataURL(file);
     });
+  },
+
+  /* ----- Google Drive Helpers ----- */
+  isGdrive(url) {
+    return /drive\.google\.com|docs\.google\.com/.test(String(url || ""));
+  },
+  gdriveId(url) {
+    if (!url) return null;
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9_-]{20,})/,
+      /[?&]id=([a-zA-Z0-9_-]{20,})/,
+      /\/d\/([a-zA-Z0-9_-]{20,})/,
+    ];
+    for (const p of patterns) {
+      const m = String(url).match(p);
+      if (m) return m[1];
+    }
+    return null;
+  },
+  gdriveDownloadUrl(url) {
+    const id = this.gdriveId(url);
+    if (!id) return url;
+    return `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
+  },
+  gdrivePreviewUrl(url) {
+    const id = this.gdriveId(url);
+    if (!id) return url;
+    return `https://drive.google.com/file/d/${id}/preview`;
+  },
+  gdriveViewUrl(url) {
+    const id = this.gdriveId(url);
+    if (!id) return url;
+    return `https://drive.google.com/file/d/${id}/view`;
   },
 };
 
@@ -652,7 +685,6 @@ const Views = {
                 <button class="btn btn-primary btn-lg" onclick="Auth.signIn()">
                   ${Utils.icon("log-in", 18)} ابدأ المذاكرة
                 </button>
-                <button class="btn btn-ghost btn-lg" onclick="Router.go('about')">اعرف أكتر</button>
               </div>
             </div>
           </section>
@@ -817,7 +849,7 @@ const Views = {
     return null;
   },
 
-  /* ----- BOOKS LIST ----- */
+  /* BOOKS LIST */
   books() {
     const all = Books.all();
     return `
@@ -838,7 +870,7 @@ const Views = {
       ${Shell.bottomNav("books")}`;
   },
 
-  /* ----- BOOK DETAIL ----- */
+  /* BOOK DETAIL */
   book(id) {
     const b = Books.byId(id);
     if (!b) return this.notFound();
@@ -868,12 +900,12 @@ const Views = {
                 <span class="tag">${Utils.timeAgo(b.createdAt)}</span>
               </div>
               <div class="flex gap-2 flex-wrap" style="margin-bottom:20px">
-                ${b.downloadUrl ? `<a href="${Utils.esc(b.downloadUrl)}" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+                ${b.downloadUrl ? `<button onclick="Actions.downloadBook('${b.id}')" class="btn btn-primary btn-lg">
                   ${Utils.icon("download", 18)} تحميل الكتاب
-                </a>` : ""}
-                ${b.previewUrl ? `<a href="${Utils.esc(b.previewUrl)}" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
+                </button>` : ""}
+                ${b.downloadUrl ? `<button onclick="Actions.previewBook('${b.id}')" class="btn btn-secondary btn-lg">
                   ${Utils.icon("eye", 18)} معاينة
-                </a>` : ""}
+                </button>` : ""}
                 <button class="btn btn-ghost" onclick="Actions.toggleFav('${b.id}')">
                   ${Utils.icon(fav ? "bookmark-check" : "bookmark", 18)} ${fav ? "محفوظ" : "حفظ"}
                 </button>
@@ -925,7 +957,6 @@ const Views = {
           <div class="page-head">
             <span class="eyebrow">الأساسيات · ${String(main.length).padStart(2, "0")}</span>
             <h1 class="title">المواد الأساسية.</h1>
-            <p class="sub">المواد اللي كل طالب لازم يذاكرها.</p>
           </div>
           <div class="grid grid-4 section">${main.map((s, i) => C.subjectCard(s, i + 1)).join("")}</div>
           ${others.length ? `
@@ -1113,10 +1144,11 @@ const Views = {
     if (c.type === "PDF" || c.type === "FILE") {
       const ext = Utils.fileExt(c.filePath || "");
       const isPdf = ext === "PDF";
+      const href = c.filePath || "#";
       return `<div class="card section">${header}${desc}<div class="file-row">
         <div class="file-ext ${isPdf ? "" : "generic"}">${ext || "FILE"}</div>
         <div class="file-info"><div class="file-name">${Utils.esc(c.filePath || c.title)}</div><div class="file-meta">${c.fileSize ? c.fileSize + " • " : ""}${isPdf ? "ملف PDF" : "ملف"}</div></div>
-        <a href="${Utils.esc(c.filePath || "#")}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">${Utils.icon("download", 14)} تحميل</a>
+        <a href="${Utils.esc(href)}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">${Utils.icon("download", 14)} تحميل</a>
       </div></div>`;
     }
     if (c.type === "SUMMARY" || c.type === "REVIEW") {
@@ -1135,7 +1167,6 @@ const Views = {
           <div class="page-head">
             <span class="eyebrow">الاختبارات · ${String(list.length).padStart(2, "0")}</span>
             <h1 class="title">اختبر نفسك.</h1>
-            <p class="sub">اختبارات إلكترونية على كل درس.</p>
           </div>
           ${list.length ? `<div class="grid grid-2">
             ${list.map(e => {
@@ -1535,12 +1566,6 @@ const Views = {
             <p style="color:var(--text-2);font-size:var(--t-md)">منصة تعليمية لطلاب تانية بكالوري مصرية.</p>
           </div>
           <div class="card section">
-            <div class="card-title">${Utils.icon("target", 18)} هدفنا</div>
-            <p style="color:var(--text-2);line-height:2;font-size:var(--t-sm);margin-top:var(--s-3)">
-              توفير كل ما يحتاجه الطالب في مكان واحد — ملخصات، ملفات، فيديوهات، كتب، اختبارات إلكترونية، وخطة مذاكرة ذكية.
-            </p>
-          </div>
-          <div class="card section">
             <div class="card-title">${Utils.icon("mail", 18)} تواصل معنا</div>
             <div class="flex flex-col gap-2" style="margin-top:var(--s-3)">
               <a href="${CONFIG.CONTACTS.admins}" target="_blank" class="btn btn-secondary">${Utils.icon("users", 16)} جروب المسؤولين</a>
@@ -1725,10 +1750,8 @@ const Admin = {
     if (currentUser) {
       fresh.users = [{
         id: currentUser.googleId || Utils.uid(),
-        name: currentUser.name,
-        email: currentUser.email,
-        phone: currentUser.phone,
-        username: currentUser.username,
+        name: currentUser.name, email: currentUser.email,
+        phone: currentUser.phone, username: currentUser.username,
         picture: currentUser.picture,
         role: "admin", banned: false, lastSeen: Date.now(), joinedAt: Date.now(),
       }];
@@ -1740,7 +1763,6 @@ const Admin = {
     Router.go("admin");
   },
 
-  /* DASHBOARD */
   dashboard() {
     const users = Store.state.users || [];
     const totalAttempts = Store.state.attempts.length;
@@ -1802,7 +1824,6 @@ const Admin = {
       ${Shell.bottomNav("home")}`;
   },
 
-  /* SUBJECTS */
   subjectsPage() {
     const subs = Store.state.subjects;
     return `
@@ -1884,7 +1905,6 @@ const Admin = {
     });
   },
 
-  /* LESSONS */
   lessonsPage() {
     const lessons = Store.state.lessons;
     return `
@@ -1953,7 +1973,6 @@ const Admin = {
     });
   },
 
-  /* CONTENT */
   contentPage() {
     const contents = Store.state.contents;
     return `
@@ -2032,7 +2051,6 @@ const Admin = {
     });
   },
 
-  /* EXAMS */
   examsPage() {
     const exams = Store.state.exams;
     return `
@@ -2183,14 +2201,36 @@ const Admin = {
 
   openBookForm(id) {
     const b = id ? Books.byId(id) : null;
+    const isGdriveLink = b?.downloadUrl && Utils.isGdrive(b.downloadUrl);
+    const isUploaded = b?.downloadUrl && b.downloadUrl.startsWith("data:");
+
     const body = `
       <div class="field"><label>عنوان الكتاب *</label><input class="input" id="f_title" value="${Utils.esc(b?.title || "")}"></div>
       <div class="field"><label>المؤلف</label><input class="input" id="f_author" value="${Utils.esc(b?.author || "")}"></div>
       <div class="field"><label>التصنيف</label><input class="input" id="f_category" value="${Utils.esc(b?.category || "")}" placeholder="مثال: رياضيات، أدب"></div>
-      <div class="field"><label>رابط التحميل *</label><input class="input" id="f_download" value="${Utils.esc(b?.downloadUrl || "")}" placeholder="https://..."></div>
-      <div class="field"><label>رابط المعاينة</label><input class="input" id="f_preview" value="${Utils.esc(b?.previewUrl || "")}" placeholder="https://..."></div>
+
+      <div class="field">
+        <label>رابط التحميل *</label>
+        <input class="input" id="f_download" value="${isUploaded ? "" : Utils.esc(b?.downloadUrl || "")}" placeholder="https://drive.google.com/file/d/XXXXX/view...">
+        <div class="field-hint">
+          💡 الأفضل: رابط <strong>Google Drive</strong> — بيتحول تلقائياً لتحميل مباشر
+          <br>أو ارفع ملف صغير تحت (حتى 2 ميجا)
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('f_book_file').click()">
+            ${Utils.icon("upload", 14)} رفع ملف صغير
+          </button>
+          <input type="file" id="f_book_file" accept=".pdf,.doc,.docx,.epub,.txt" style="display:none">
+        </div>
+        <div id="book-file-info" style="margin-top:8px;font-size:12px;color:var(--success);${isUploaded ? "" : "display:none"}">
+          ${Utils.icon("file-check", 14)} <span id="book-file-name">${isUploaded ? "ملف مرفوع مسبقاً" : ""}</span>
+        </div>
+      </div>
+
+      <div class="field"><label>رابط المعاينة (اختياري)</label><input class="input" id="f_preview" value="${Utils.esc(b?.previewUrl || "")}" placeholder="https://..."></div>
       <div class="field"><label>الوصف *</label><textarea class="textarea" id="f_desc" style="min-height:140px">${Utils.esc(b?.description || "")}</textarea></div>
       <div class="field"><label>ملاحظات إضافية</label><textarea class="textarea" id="f_notes">${Utils.esc(b?.notes || "")}</textarea></div>
+
       <div class="field">
         <label>صورة الغلاف</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -2199,11 +2239,12 @@ const Admin = {
           </button>
           <input type="file" id="f_cover_file" accept="image/*" style="display:none">
         </div>
-        <input class="input" id="f_cover_url" value="${Utils.esc(b?.cover || "")}" placeholder="أو الصق رابط صورة">
+        <input class="input" id="f_cover_url" value="${Utils.esc(b?.cover && !b.cover.startsWith("data:") ? b.cover : "")}" placeholder="أو الصق رابط صورة">
         <div id="cover-preview" style="margin-top:12px;${b?.cover ? "" : "display:none"}">
           <img id="cover-img" src="${Utils.esc(b?.cover || "")}" style="max-width:150px;border-radius:8px">
         </div>
       </div>`;
+
     const m = UI.modal({ title: b ? "تعديل كتاب" : "كتاب جديد", body, size: "lg",
       footer: `<button class="btn btn-secondary" data-x>إلغاء</button><button class="btn btn-primary" data-ok>${b ? "حفظ" : "إضافة"}</button>` });
 
@@ -2213,13 +2254,15 @@ const Admin = {
     const coverImg = m.el.querySelector("#cover-img");
     let coverBase64 = b?.cover?.startsWith("data:") ? b.cover : "";
 
+    const bookFileInput = m.el.querySelector("#f_book_file");
+    const bookFileInfo = m.el.querySelector("#book-file-info");
+    const bookFileName = m.el.querySelector("#book-file-name");
+    let bookFileBase64 = isUploaded ? b.downloadUrl : "";
+
     coverFileInput.onchange = async () => {
       const file = coverFileInput.files[0];
       if (!file) return;
-      if (file.size > 500 * 1024) {
-        UI.toast("الصورة كبيرة جداً (الحد 500KB)", "error");
-        return;
-      }
+      if (file.size > 500 * 1024) return UI.toast("الصورة كبيرة (الحد 500KB)", "error");
       coverBase64 = await Utils.fileToDataURL(file);
       coverImg.src = coverBase64;
       coverPreview.style.display = "block";
@@ -2233,13 +2276,24 @@ const Admin = {
       }
     };
 
+    bookFileInput.onchange = async () => {
+      const file = bookFileInput.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) return UI.toast("الملف كبير (الحد 2 ميجا)", "error");
+      bookFileBase64 = await Utils.fileToDataURL(file);
+      bookFileName.textContent = file.name + " (" + (file.size / 1024).toFixed(0) + " KB)";
+      bookFileInfo.style.display = "block";
+      m.el.querySelector("#f_download").value = "";
+    };
+
     m.el.querySelector("[data-x]").onclick = () => m.close();
     m.el.querySelector("[data-ok]").onclick = () => {
       const title = m.el.querySelector("#f_title").value.trim();
-      const downloadUrl = m.el.querySelector("#f_download").value.trim();
+      const urlInput = m.el.querySelector("#f_download").value.trim();
+      const downloadUrl = bookFileBase64 || urlInput;
       const description = m.el.querySelector("#f_desc").value.trim();
       if (!title) return UI.toast("أدخل عنوان الكتاب", "error");
-      if (!downloadUrl) return UI.toast("أدخل رابط التحميل", "error");
+      if (!downloadUrl) return UI.toast("أضف ملف أو رابط تحميل", "error");
       if (!description) return UI.toast("أدخل وصف الكتاب", "error");
 
       const cover = coverBase64 || coverUrlInput.value.trim();
@@ -2269,7 +2323,6 @@ const Admin = {
     });
   },
 
-  /* POSTS */
   postsPage() {
     const posts = [...Store.state.posts].sort((a, b) => b.createdAt - a.createdAt);
     return `
@@ -2344,10 +2397,7 @@ const Admin = {
     imageFileInput.onchange = async () => {
       const file = imageFileInput.files[0];
       if (!file) return;
-      if (file.size > 700 * 1024) {
-        UI.toast("الصورة كبيرة جداً (الحد 700KB)", "error");
-        return;
-      }
+      if (file.size > 700 * 1024) return UI.toast("الصورة كبيرة (الحد 700KB)", "error");
       imageBase64 = await Utils.fileToDataURL(file);
       mediaTypeSelect.value = "image";
       mediaImg.src = imageBase64;
@@ -2405,30 +2455,44 @@ const Admin = {
             <div><span class="eyebrow">الطلاب · ${users.length}</span><h2 class="section-title">${Utils.icon("users", 22)} إدارة الطلاب</h2></div>
             ${others.length ? `<button class="btn btn-danger btn-sm" onclick="Admin.deleteAllUsers()">${Utils.icon("trash-2", 14)} حذف الكل</button>` : ""}
           </div>
-          ${users.length ? `<div class="grid grid-2">${users.map(u => `
-            <div class="card">
-              <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
-                <div class="avatar" style="width:46px;height:46px">
-                  ${u.picture ? `<img src="${u.picture}">` : (u.name?.[0] || "?")}
+          ${users.length ? `<div class="grid grid-2">${users.map(u => {
+            const isAdmin = CONFIG.ADMIN_EMAILS.includes((u.email || "").toLowerCase());
+            const isMe = u.email === Store.state.user?.email;
+            return `
+              <div class="card">
+                <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+                  <div class="avatar" style="width:46px;height:46px">
+                    ${u.picture ? `<img src="${u.picture}">` : (u.name?.[0] || "?")}
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:var(--t-sm)">${Utils.esc(u.name)}</div>
+                    <div style="font-size:11px;color:var(--text-3);truncate">${Utils.esc(u.email)}</div>
+                  </div>
+                  ${isAdmin ? `<span class="tag tag-accent">${Utils.icon("shield", 10)} أدمن</span>` : ""}
+                  ${u.banned ? '<span class="tag tag-danger">محظور</span>' : '<span class="tag tag-success">نشط</span>'}
                 </div>
-                <div style="flex:1;min-width:0">
-                  <div style="font-weight:700;font-size:var(--t-sm)">${Utils.esc(u.name)}</div>
-                  <div style="font-size:11px;color:var(--text-3);truncate">${Utils.esc(u.email)}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+                  <span class="tag">@${u.username || "—"}</span>
+                  ${u.joinedAt ? `<span class="tag">انضم ${Utils.timeAgo(u.joinedAt)}</span>` : ""}
                 </div>
-                ${CONFIG.ADMIN_EMAILS.includes((u.email || "").toLowerCase()) ? '<span class="tag tag-accent">أدمن</span>' : ""}
-                ${u.banned ? '<span class="tag tag-danger">محظور</span>' : '<span class="tag tag-success">نشط</span>'}
+                ${isMe ? `
+                  <div style="font-size:12px;color:var(--text-3);text-align:center;padding:10px;background:var(--surface-2);border-radius:8px">
+                    ${Utils.icon("info", 12)} ده حسابك
+                  </div>
+                ` : `
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="btn ${u.banned ? "btn-success" : "btn-danger"} btn-sm" style="flex:1;min-width:100px" onclick="Admin.toggleBan('${u.id}')">
+                      ${Utils.icon(u.banned ? "user-check" : "user-x", 12)} ${u.banned ? "إلغاء الحظر" : "حظر"}
+                    </button>
+                    <button class="btn ${isAdmin ? "btn-secondary" : "btn-accent"} btn-sm" style="flex:1;min-width:100px" onclick="Admin.toggleAdmin('${u.id}')">
+                      ${Utils.icon(isAdmin ? "shield-off" : "shield", 12)}
+                      ${isAdmin ? "إزالة أدمن" : "ترقية لأدمن"}
+                    </button>
+                  </div>
+                `}
               </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-                <span class="tag">${u.phone || "—"}</span>
-                <span class="tag">@${u.username || "—"}</span>
-              </div>
-              <div style="display:flex;gap:6px">
-                <button class="btn ${u.banned ? "btn-success" : "btn-danger"} btn-sm" style="flex:1" onclick="Admin.toggleBan('${u.id}')">
-                  ${Utils.icon(u.banned ? "user-check" : "user-x", 12)} ${u.banned ? "إلغاء الحظر" : "حظر"}
-                </button>
-              </div>
-            </div>
-          `).join("")}</div>` : C.empty("users", "لا طلاب بعد", "أول ما حد يسجل هتلاقيه هنا.")}
+            `;
+          }).join("")}</div>` : C.empty("users", "لا طلاب بعد", "أول ما حد يسجل هتلاقيه هنا.")}
         `, "الطلاب")}
       </main>
       ${Shell.bottomNav("home")}`;
@@ -2441,6 +2505,24 @@ const Admin = {
     u.banned = !u.banned;
     Store.persist();
     UI.toast(u.banned ? "تم الحظر" : "تم إلغاء الحظر", "success");
+    Router.render();
+  },
+
+  toggleAdmin(userId) {
+    const u = Store.state.users.find(x => x.id === userId);
+    if (!u) return;
+    if (u.email === Store.state.user?.email) return UI.toast("مش هتقدر تغير صلاحيتك", "error");
+    const email = (u.email || "").toLowerCase();
+    const isAdmin = CONFIG.ADMIN_EMAILS.includes(email);
+    if (isAdmin) {
+      const idx = CONFIG.ADMIN_EMAILS.indexOf(email);
+      if (idx >= 0) CONFIG.ADMIN_EMAILS.splice(idx, 1);
+      UI.toast("تم إزالة الأدمن", "success");
+    } else {
+      CONFIG.ADMIN_EMAILS.push(email);
+      UI.toast("تم الترقية لأدمن ✓", "success");
+    }
+    Store.persist();
     Router.render();
   },
 };
@@ -2533,6 +2615,70 @@ const Actions = {
   markAllRead() { Notifications.readAll(); Router.render(); UI.toast("تم تعليم الكل كمقروء"); },
   togglePlan(id) { Plan.toggle(id); Router.render(); },
   deletePlan(id) { Plan.remove(id); UI.toast("تم الحذف"); Router.render(); },
+
+  /* ----- تحميل الكتاب ----- */
+  downloadBook(bookId) {
+    const b = Books.byId(bookId);
+    if (!b || !b.downloadUrl) return UI.toast("لا يوجد رابط", "error");
+
+    if (Utils.isGdrive(b.downloadUrl)) {
+      const directUrl = Utils.gdriveDownloadUrl(b.downloadUrl);
+      UI.toast("جارٍ التحميل...", "info", 1500);
+      const a = document.createElement("a");
+      a.href = directUrl;
+      a.target = "_blank";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    const a = document.createElement("a");
+    a.href = b.downloadUrl;
+    a.target = "_blank";
+    a.rel = "noopener";
+    if (!b.downloadUrl.startsWith("data:")) a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+
+  /* ----- معاينة الكتاب ----- */
+  previewBook(bookId) {
+    const b = Books.byId(bookId);
+    if (!b) return;
+
+    if (Utils.isGdrive(b.downloadUrl)) {
+      const previewUrl = b.previewUrl && Utils.isGdrive(b.previewUrl)
+        ? Utils.gdrivePreviewUrl(b.previewUrl)
+        : Utils.gdrivePreviewUrl(b.downloadUrl);
+
+      UI.modal({
+        title: `معاينة: ${Utils.esc(b.title)}`,
+        size: "lg",
+        body: `<div style="width:100%;height:70dvh;background:var(--surface-2);border-radius:12px;overflow:hidden">
+          <iframe src="${previewUrl}" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
+        </div>`,
+        footer: `<button class="btn btn-secondary" onclick="document.querySelector('.modal-bg.show [data-close]').click()">إغلاق</button>`,
+      });
+      return;
+    }
+
+    if (b.downloadUrl.startsWith("data:application/pdf")) {
+      UI.modal({
+        title: `معاينة: ${Utils.esc(b.title)}`,
+        size: "lg",
+        body: `<div style="width:100%;height:70dvh;background:var(--surface-2);border-radius:12px;overflow:hidden">
+          <iframe src="${b.downloadUrl}" style="width:100%;height:100%;border:0" loading="lazy"></iframe>
+        </div>`,
+        footer: `<button class="btn btn-secondary" onclick="document.querySelector('.modal-bg.show [data-close]').click()">إغلاق</button>`,
+      });
+      return;
+    }
+
+    window.open(b.previewUrl || b.downloadUrl, "_blank");
+  },
 
   openAddPlan(lessonId, subjectId) {
     const lessonsHtml = (subjectId ? Subjects.lessons(subjectId) : Store.state.lessons)
@@ -2691,7 +2837,7 @@ const Actions = {
   },
 };
 
-/* ----- AUTH (Google) ----- */
+/* ----- AUTH (Google - تسجيل مباشر) ----- */
 const Auth = {
   signIn() {
     if (CONFIG.GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
@@ -2699,7 +2845,7 @@ const Auth = {
       window.google.accounts.id.prompt();
       return;
     }
-    this._showConfirmForm({ googleId: "g_" + Utils.uid(), name: "", email: "", picture: "" });
+    UI.toast("جاري تحميل Google... حاول تاني بعد لحظة", "info", 3000);
   },
 
   _initGoogle() {
@@ -2716,7 +2862,7 @@ const Auth = {
   _handleGoogleResponse(response) {
     try {
       const payload = JSON.parse(atob(response.credential.split(".")[1]));
-      this._showConfirmForm({
+      this._createUser({
         googleId: payload.sub,
         name: payload.name,
         email: payload.email,
@@ -2728,45 +2874,42 @@ const Auth = {
     }
   },
 
-  _showConfirmForm(user) {
-    const body = `
-      <p style="color:var(--text-2);font-size:var(--t-sm);margin-bottom:var(--s-4);line-height:1.7">
-        مرحبًا بك في بكالوري! أكمل بياناتك للبدء.
-      </p>
-      <div class="field"><label>الاسم</label><input class="input" id="i_name" value="${Utils.esc(user.name || "")}" placeholder="اسمك الكامل"></div>
-      <div class="field"><label>البريد الإلكتروني</label><input class="input" id="i_email" type="email" value="${Utils.esc(user.email || "")}" placeholder="you@gmail.com"></div>
-      <div class="field"><label>رقم الهاتف</label><input class="input" id="i_phone" placeholder="01xxxxxxxxx" type="tel"></div>
-      <div class="field"><label>اسم المستخدم</label><input class="input" id="i_user" placeholder="ahmed_2025"></div>
-      <label style="display:flex;align-items:center;gap:var(--s-2);cursor:pointer">
-        <input type="checkbox" id="i_confirm" style="width:auto;accent-color:var(--primary)">
-        <span style="font-size:var(--t-sm)">أؤكد أنني طالب في تانية بكالوري مصرية</span>
-      </label>`;
-    const m = UI.modal({ title: "تأكيد بياناتك", body,
-      footer: `<button class="btn btn-primary btn-block" data-ok>ابدأ الآن</button>` });
-    m.el.querySelector("[data-ok]").onclick = () => {
-      const name = m.el.querySelector("#i_name").value.trim();
-      const email = m.el.querySelector("#i_email").value.trim();
-      const phone = m.el.querySelector("#i_phone").value.trim();
-      const username = m.el.querySelector("#i_user").value.trim();
-      if (!name || !email || !phone || !username) return UI.toast("أكمل جميع الحقول", "error");
-      if (!email.includes("@") || !email.includes(".")) return UI.toast("البريد الإلكتروني غير صحيح", "error");
-      if (!m.el.querySelector("#i_confirm").checked) return UI.toast("يجب تأكيد أنك طالب بكالوري", "error");
-      const newUser = { ...user, name, email, phone, username, confirmedAt: Date.now() };
-      Store.state.user = newUser;
-      const userRecord = {
-        id: newUser.googleId || Utils.uid(),
-        name, email, phone, username, picture: newUser.picture,
-        role: CONFIG.ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "student",
-        banned: false, lastSeen: Date.now(), joinedAt: Date.now(),
-      };
-      const idx = Store.state.users.findIndex(u => u.id === userRecord.id);
-      if (idx >= 0) Store.state.users[idx] = { ...Store.state.users[idx], ...userRecord, joinedAt: Store.state.users[idx].joinedAt };
-      else Store.state.users.push(userRecord);
-      Store.persist();
-      m.close();
-      UI.toast(`أهلًا بك، ${name.split(" ")[0]}!`, "success", 3000);
-      Router.go("home");
+  /* تسجيل مباشر — بدون فورم */
+  _createUser(user) {
+    if (!user.email) return UI.toast("لم نتمكن من قراءة بيانات Google", "error");
+
+    const newUser = {
+      ...user,
+      username: user.email.split("@")[0],
+      phone: "",
+      confirmedAt: Date.now(),
     };
+
+    Store.state.user = newUser;
+
+    const userRecord = {
+      id: newUser.googleId || Utils.uid(),
+      name: newUser.name,
+      email: newUser.email,
+      phone: "",
+      username: newUser.username,
+      picture: newUser.picture,
+      role: CONFIG.ADMIN_EMAILS.includes((newUser.email || "").toLowerCase()) ? "admin" : "student",
+      banned: false,
+      lastSeen: Date.now(),
+      joinedAt: Date.now(),
+    };
+
+    const idx = Store.state.users.findIndex(u => u.id === userRecord.id);
+    if (idx >= 0) {
+      Store.state.users[idx] = { ...Store.state.users[idx], ...userRecord, joinedAt: Store.state.users[idx].joinedAt };
+    } else {
+      Store.state.users.push(userRecord);
+    }
+
+    Store.persist();
+    UI.toast(`أهلًا بك، ${(newUser.name || "").split(" ")[0] || "طالب"}!`, "success", 3000);
+    Router.go("home");
   },
 
   signOut() {
@@ -2805,7 +2948,17 @@ document.addEventListener("click", e => {
   if (savedRoute) { try { Router.current = JSON.parse(savedRoute); } catch {} }
 
   if (CONFIG.GOOGLE_CLIENT_ID && window.google?.accounts?.id) Auth._initGoogle();
-  else setTimeout(() => { if (CONFIG.GOOGLE_CLIENT_ID && window.google?.accounts?.id) Auth._initGoogle(); }, 1000);
+  else {
+    // انتظر تحميل Google SDK
+    let attempts = 0;
+    const wait = setInterval(() => {
+      attempts++;
+      if (window.google?.accounts?.id || attempts > 20) {
+        clearInterval(wait);
+        if (CONFIG.GOOGLE_CLIENT_ID && window.google?.accounts?.id) Auth._initGoogle();
+      }
+    }, 300);
+  }
 
   window.addEventListener("error", e => console.error("App Error:", e.error));
   window.addEventListener("unhandledrejection", e => console.error("Unhandled Promise:", e.reason));
