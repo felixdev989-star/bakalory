@@ -2767,3 +2767,231 @@ img, svg, video, iframe{
 /* ============================================================
    END
    ============================================================ */
+/* ============================================================
+   BOOKS SECTION — v4.0
+   ============================================================ */
+
+/* ----- Books Grid ----- */
+.books-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 640px){
+  .books-grid{
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ----- Book Card ----- */
+.book-card{
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 500ms var(--ease-cinema);
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+.book-card::before{
+  content: "";
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  height: 3px;
+  background: var(--primary);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 500ms var(--ease-cinema);
+  z-index: 2;
+}
+
+html[dir="rtl"] .book-card::before{ transform-origin: left; }
+.book-card:hover::before{ transform: scaleX(1); }
+
+.book-card:hover{
+  border-color: var(--primary);
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px -20px var(--primary-glow);
+}
+
+/* Book Cover */
+.book-cover{
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.book-cover img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 600ms var(--ease-cinema);
+}
+
+.book-card:hover .book-cover img{
+  transform: scale(1.05);
+}
+
+.book-cover-placeholder{
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--primary);
+  opacity: 0.4;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary) 10%, transparent),
+    color-mix(in srgb, var(--primary) 5%, transparent));
+}
+
+.book-cover-placeholder svg{
+  width: 48px;
+  height: 48px;
+}
+
+/* Book Info */
+.book-info{
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.book-title{
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-author{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.book-author svg{
+  width: 12px;
+  height: 12px;
+}
+
+.book-desc{
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ============================================================
+   BOOK DETAIL PAGE
+   ============================================================ */
+.book-detail{
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 40px;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+@media (max-width: 768px){
+  .book-detail{
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+.book-detail-cover{
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.3);
+}
+
+.book-detail-cover img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.book-detail-cover .book-cover-placeholder svg{
+  width: 64px;
+  height: 64px;
+}
+
+.book-detail-info{
+  padding-top: 8px;
+}
+
+@media (max-width: 768px){
+  .book-detail-cover{
+    max-width: 220px;
+    margin: 0 auto;
+  }
+  .book-detail-info{
+    text-align: center;
+  }
+  .book-detail-info .flex.gap-2{
+    justify-content: center;
+  }
+}
+
+/* ============================================================
+   POSTS WITH MEDIA — Enhancement
+   ============================================================ */
+.card img{
+  max-width: 100%;
+  height: auto;
+}
+
+.card iframe{
+  border: 0;
+}
+
+/* ============================================================
+   MOBILE FIXES for Books
+   ============================================================ */
+@media (max-width: 520px){
+  .book-info{ padding: 10px 12px 14px; }
+  .book-title{ font-size: 13.5px; }
+  .book-desc{ font-size: 11px; }
+  .book-author{ font-size: 10.5px; }
+  .book-detail{ gap: 20px; }
+  .book-detail-cover{ max-width: 180px; }
+}
+
+/* ============================================================
+   END — BOOKS
+   ============================================================ */
